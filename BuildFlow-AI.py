@@ -1,45 +1,62 @@
-# buildflow_ai.py
-
 import streamlit as st
 import pandas as pd
 import datetime
 import plotly.express as px
+import requests
 
-# Title and description
+# Configurations
+OPENWEATHER_API_KEY = st.secrets.get("OPENWEATHER_API_KEY", "your_openweather_api_key_here")
+
+def get_weather_forecast(city="New York"):
+    url = f"https://api.openweathermap.org/data/2.5/forecast?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
+    response = requests.get(url)
+    if response.status_code == 200:
+        forecast = response.json()
+        rain_days = [
+            item["dt_txt"].split(" ")[0]
+            for item in forecast["list"]
+            if "rain" in item and item["rain"].get("3h", 0) > 0
+        ]
+        return set(rain_days)
+    return set()
+
+# Simulated progress API endpoint
+def get_site_progress():
+    return {
+        "Foundation": "complete",
+        "Framing": "delayed",
+        "Roofing": "on_schedule"
+    }
+
 st.set_page_config(page_title="BuildFlow AI", layout="wide")
-st.title("🏗️ BuildFlow AI — Construction Scheduler MVP")
-st.markdown("Upload your construction schedule and simulate delays with AI-powered risk scoring.")
+st.title("🏗️ BuildFlow AI — Real-Time Scheduler")
+st.markdown("Upload your construction schedule and simulate disruptions with live data.")
 
-# Upload CSV
 uploaded_file = st.file_uploader("📂 Upload Construction Schedule (CSV)", type=["csv"])
 
-# Define main logic
 if uploaded_file:
-    # Read and display original schedule
     df = pd.read_csv(uploaded_file, parse_dates=["Start", "End"])
     st.subheader("🗂️ Original Schedule")
     st.dataframe(df)
 
-    # Add duration and placeholder risk score
     df["Duration"] = (df["End"] - df["Start"]).dt.days
     df["RiskScore"] = 0.0
 
-    # Simulate delay interface
-    st.subheader("⏱ Simulate Delay")
-    task_to_delay = st.selectbox("Select a task to delay", df["Task"])
-    delay_days = st.slider("Delay by how many days?", 0, 10, 2)
+    city = st.text_input("Enter your construction site city:", "New York")
+    rain_days = get_weather_forecast(city)
+    progress_status = get_site_progress()
 
-    if st.button("Apply Delay"):
-        df.loc[df["Task"] == task_to_delay, "Start"] += datetime.timedelta(days=delay_days)
-        df.loc[df["Task"] == task_to_delay, "End"] += datetime.timedelta(days=delay_days)
-        df["Duration"] = (df["End"] - df["Start"]).dt.days
-        df["RiskScore"] = df["Duration"] / df["Duration"].max() * 100  # Naive risk formula
+    for index, row in df.iterrows():
+        task = row["Task"]
+        if progress_status.get(task) == "delayed":
+            df.at[index, "RiskScore"] += 30
+        task_days = pd.date_range(row["Start"], row["End"]).strftime('%Y-%m-%d')
+        if any(day in rain_days for day in task_days):
+            df.at[index, "RiskScore"] += 40
 
-    # Display updated schedule
-    st.subheader("📋 Updated Schedule with Risk Scores")
+    st.subheader("📋 Schedule with Real-Time Risk Scores")
     st.dataframe(df)
 
-    # Gantt chart with Plotly
     st.subheader("📆 Gantt Chart")
     fig = px.timeline(
         df,
@@ -48,22 +65,19 @@ if uploaded_file:
         y="Task",
         color="RiskScore",
         color_continuous_scale="OrRd",
-        title="Construction Timeline"
+        title="Live Construction Timeline"
     )
     fig.update_yaxes(autorange="reversed")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Download updated CSV
     st.download_button(
         label="⬇️ Download Updated Schedule",
         data=df.to_csv(index=False),
-        file_name="updated_schedule.csv",
+        file_name="updated_schedule_with_weather.csv",
         mime="text/csv"
     )
-
 else:
-    st.info("Please upload a CSV file with columns: `Task`, `Start`, `End` (dates in YYYY-MM-DD format).")
+    st.info("Please upload a CSV file with columns: `Task`, `Start`, `End`.")
 
-# Footer
 st.markdown("---")
-st.caption("🚧 Prototype version — BuildFlow AI © 2025")
+st.caption("🚧 Real-time prototype — BuildFlow AI © 2025")
