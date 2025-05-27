@@ -1,0 +1,48 @@
+import streamlit as st
+import yaml
+import bcrypt
+from pathlib import Path
+
+CONFIG_PATH = Path(__file__).parent.parent / "config" / "users.yaml"
+
+st.set_page_config(page_title="Register", layout="centered")
+st.title("📝 Register New User")
+
+def load_config():
+    with open(CONFIG_PATH, "r") as file:
+        return yaml.safe_load(file)
+
+def save_config(config):
+    with open(CONFIG_PATH, "w") as file:
+        yaml.dump(config, file)
+
+def register_user(username, name, email, password):
+    config = load_config()
+    if username in config["credentials"]["usernames"]:
+        return False, "Username already exists."
+    hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    config["credentials"]["usernames"][username] = {
+        "email": email,
+        "name": name,
+        "password": hashed_pw
+    }
+    config["preauthorized"]["emails"].append(email)
+    save_config(config)
+    return True, "User registered successfully!"
+
+with st.form("registration_form"):
+    username = st.text_input("Username")
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    submit = st.form_submit_button("Register")
+
+    if submit:
+        if not username or not name or not email or not password:
+            st.warning("Please fill in all fields.")
+        else:
+            success, message = register_user(username, name, email, password)
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
