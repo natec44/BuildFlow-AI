@@ -1,0 +1,31 @@
+users
+- id
+- username
+- email
+- hashed_password
+
+projects
+- id
+- name
+- owner_id (FK to users.id)
+
+project_collaborators
+- project_id
+- user_id
+
+tasks
+- id
+- project_id (FK)
+- name
+- start_date
+- end_date
+- status
+- risk_score
+
+vendors
+- id
+- project_id (FK)
+- name
+- product
+- availability
+- lead_time
